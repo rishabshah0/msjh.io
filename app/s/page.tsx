@@ -65,7 +65,7 @@ export default function ScheduleTimer() {
   const dayStart = toMin(schedule[0].startHour, schedule[0].startMinute);
   const dayEnd   = toMin(schedule[schedule.length - 1].endHour, schedule[schedule.length - 1].endMinute);
   const dayPct   = curMin < 0 ? 0 : Math.min(1, Math.max(0, (curMin - dayStart) / (dayEnd - dayStart)));
-  const isAllDone = now !== null && curMin >= dayEnd;
+  const isAllDone   = now !== null && curMin >= dayEnd;
   const isPreSchool = now !== null && curMin < dayStart;
 
   const items = schedule.map(item => {
@@ -92,7 +92,7 @@ export default function ScheduleTimer() {
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
         html, body {
-          background: #F8F7F4;
+          background: #F4F6F2;
           color: #18181A;
           font-family: 'Barlow', sans-serif;
           min-height: 100vh;
@@ -100,17 +100,18 @@ export default function ScheduleTimer() {
         }
 
         :root {
-          --blue:      #2563EB;
-          --blue-bg:   #EFF6FF;
-          --blue-mid:  #BFDBFE;
-          --green:     #16A34A;
-          --green-bg:  #F0FDF4;
-          --ink:       #18181A;
-          --muted:     #71717A;
-          --faint:     #A1A1AA;
-          --border:    #E4E4E7;
-          --bg:        #F8F7F4;
-          --surface:   #FFFFFF;
+          --green:      #2D6A2D;
+          --green-bg:   #EEF5EE;
+          --green-mid:  #A8CDA8;
+          --green-lite: #C6DEC6;
+          --green-text: #4A8C4A;
+          --sage:       #7DAD7D;
+          --ink:        #18181A;
+          --muted:      #5A6B5A;
+          --faint:      #8FA98F;
+          --border:     #D5E2D5;
+          --bg:         #F4F6F2;
+          --surface:    #FFFFFF;
         }
 
         .page {
@@ -129,7 +130,6 @@ export default function ScheduleTimer() {
           border-bottom: 1.5px solid var(--border);
         }
 
-        .header-left {}
         .header-school {
           font-family: 'Barlow Condensed', sans-serif;
           font-size: 0.65rem;
@@ -148,10 +148,7 @@ export default function ScheduleTimer() {
           color: var(--ink);
         }
 
-        .header-right {
-          text-align: right;
-          flex-shrink: 0;
-        }
+        .header-right { text-align: right; flex-shrink: 0; }
         .header-clock {
           font-variant-numeric: tabular-nums;
           font-family: 'Barlow Condensed', sans-serif;
@@ -194,7 +191,7 @@ export default function ScheduleTimer() {
         }
         .day-bar-fill {
           height: 100%;
-          background: var(--blue);
+          background: var(--green);
           border-radius: 4px;
           transition: width 1s linear;
         }
@@ -202,7 +199,7 @@ export default function ScheduleTimer() {
           font-family: 'Barlow Condensed', sans-serif;
           font-size: 0.62rem;
           font-weight: 600;
-          color: var(--blue);
+          color: var(--green);
           letter-spacing: 0.05em;
           white-space: nowrap;
         }
@@ -216,9 +213,10 @@ export default function ScheduleTimer() {
 
         /* Active period hero */
         .hero-active {
-          background: var(--blue);
+          background: var(--green);
           color: #fff;
           padding: 1.5rem;
+          border-radius: 14px;
         }
         .hero-active-top {
           display: flex;
@@ -250,10 +248,7 @@ export default function ScheduleTimer() {
           margin-top: 0.4rem;
           letter-spacing: 0.04em;
         }
-        .hero-countdown {
-          text-align: right;
-          flex-shrink: 0;
-        }
+        .hero-countdown { text-align: right; flex-shrink: 0; }
         .hero-countdown-num {
           font-variant-numeric: tabular-nums;
           font-family: 'Barlow Condensed', sans-serif;
@@ -270,10 +265,7 @@ export default function ScheduleTimer() {
           opacity: 0.6;
           margin-top: 0.3rem;
         }
-        /* period bar inside active hero */
-        .hero-period-bar {
-          margin-top: 1.2rem;
-        }
+        .hero-period-bar { margin-top: 1.2rem; }
         .hero-period-bar-meta {
           display: flex;
           justify-content: space-between;
@@ -299,7 +291,7 @@ export default function ScheduleTimer() {
         /* Up next hero */
         .hero-next {
           background: var(--green-bg);
-          border: 1.5px solid #BBF7D0;
+          border: 1.5px solid var(--green-lite);
           border-radius: 14px;
           padding: 1.3rem 1.5rem;
           display: flex;
@@ -321,10 +313,6 @@ export default function ScheduleTimer() {
           padding: 2rem 1.5rem;
           text-align: center;
         }
-        .hero-status-emoji {
-          font-size: 2.5rem;
-          margin-bottom: 0.75rem;
-        }
         .hero-status-title {
           font-family: 'Barlow Condensed', sans-serif;
           font-size: clamp(1.6rem, 5vw, 2.5rem);
@@ -339,20 +327,17 @@ export default function ScheduleTimer() {
           margin-top: 0.5rem;
           letter-spacing: 0.02em;
         }
-        /* Next school day hint */
         .hero-status-next {
           margin-top: 1rem;
           font-family: 'Barlow Condensed', sans-serif;
           font-size: 0.75rem;
           letter-spacing: 0.12em;
           text-transform: uppercase;
-          color: var(--blue);
+          color: var(--green);
         }
 
         /* ── SCHEDULE LIST ── */
-        .schedule {
-          padding: 0 1.5rem;
-        }
+        .schedule { padding: 0 1.5rem; }
         .sched-header {
           font-family: 'Barlow Condensed', sans-serif;
           font-size: 0.62rem;
@@ -373,13 +358,10 @@ export default function ScheduleTimer() {
           border-bottom: 1px solid var(--border);
           transition: opacity 0.3s;
         }
-        .sched-row.is-done {
-          opacity: 0.4;
-        }
-        /* active gets a colored left inset */
+        .sched-row.is-done { opacity: 0.4; }
         .sched-row.is-active {
           opacity: 1;
-          background: var(--blue-bg);
+          background: var(--green-bg);
           border-radius: 10px;
           border-color: transparent;
           margin: 0.25rem -0.75rem;
@@ -395,10 +377,8 @@ export default function ScheduleTimer() {
           text-align: right;
           flex-shrink: 0;
         }
-        .sched-row.is-active .sched-num { color: var(--blue); }
-        .sched-row.is-done  .sched-num { color: var(--faint); }
+        .sched-row.is-active .sched-num { color: var(--green); }
 
-        .sched-body {}
         .sched-name {
           font-family: 'Barlow Condensed', sans-serif;
           font-size: clamp(1.1rem, 3.5vw, 1.5rem);
@@ -413,7 +393,7 @@ export default function ScheduleTimer() {
           color: var(--muted);
           font-size: clamp(0.9rem, 2.5vw, 1.15rem);
         }
-        .sched-row.is-active .sched-name { color: var(--blue); }
+        .sched-row.is-active .sched-name { color: var(--green); }
 
         .sched-time {
           font-family: 'Barlow Condensed', sans-serif;
@@ -422,12 +402,9 @@ export default function ScheduleTimer() {
           letter-spacing: 0.04em;
           margin-top: 0.1rem;
         }
-        .sched-row.is-active .sched-time { color: #93C5FD; }
+        .sched-row.is-active .sched-time { color: var(--sage); }
 
-        .sched-right {
-          text-align: right;
-          flex-shrink: 0;
-        }
+        .sched-right { text-align: right; flex-shrink: 0; }
 
         .badge {
           display: inline-block;
@@ -440,8 +417,8 @@ export default function ScheduleTimer() {
           border-radius: 3px;
           margin-bottom: 0.25rem;
         }
-        .badge-now  { background: var(--blue); color: #fff; }
-        .badge-next { background: var(--green-bg); color: var(--green); border: 1px solid #BBF7D0; }
+        .badge-now  { background: var(--green); color: #fff; }
+        .badge-next { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-lite); }
 
         .sched-val {
           font-family: 'Barlow Condensed', sans-serif;
@@ -451,8 +428,7 @@ export default function ScheduleTimer() {
           line-height: 1;
           color: var(--ink);
         }
-        .sched-row.is-active .sched-val { color: var(--blue); font-weight: 600; }
-        .sched-row.is-done   .sched-val { display: none; }
+        .sched-row.is-active .sched-val { color: var(--green); font-weight: 600; }
 
         .sched-val-lbl {
           font-family: 'Barlow Condensed', sans-serif;
@@ -462,27 +438,25 @@ export default function ScheduleTimer() {
           color: var(--faint);
           margin-top: 0.1rem;
         }
-        .sched-row.is-active .sched-val-lbl { color: #93C5FD; }
+        .sched-row.is-active .sched-val-lbl { color: var(--sage); }
 
         .done-mark {
           font-family: 'Barlow Condensed', sans-serif;
           font-size: 0.65rem;
           letter-spacing: 0.08em;
-          text-transform: uppercase;
-          color: var(--faint);
+          color: var(--green-mid);
         }
 
-        /* active progress bar sits between rows */
         .active-bar {
           height: 3px;
-          background: var(--blue-mid);
+          background: var(--green-lite);
           border-radius: 3px;
           margin: 0 -0.75rem 0.25rem;
           overflow: hidden;
         }
         .active-bar-fill {
           height: 100%;
-          background: var(--blue);
+          background: var(--green);
           border-radius: 3px;
           transition: width 1s linear;
         }
@@ -499,7 +473,7 @@ export default function ScheduleTimer() {
 
         {/* HEADER */}
         <div className="header">
-          <div className="header-left">
+          <div>
             <div className="header-school">Mission San Jose High</div>
             <div className="header-title">Schedule</div>
           </div>
