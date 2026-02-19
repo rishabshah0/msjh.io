@@ -24,29 +24,123 @@ const schedule: ScheduleItem[] = [
 ];
 
 function toMin(h: number, m: number) { return h * 60 + m; }
+
 function fmt12(h: number, m: number) {
   const ap = h >= 12 ? 'PM' : 'AM';
   return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${ap}`;
 }
+
 function fmtClock(d: Date) {
-  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
+  return d.toLocaleTimeString('en-US', {
+    hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true,
+  });
 }
+
 function fmtCountdown(ms: number) {
   if (ms <= 0) return '—';
-  const s = Math.floor(ms / 1000);
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
+  const s   = Math.floor(ms / 1000);
+  const h   = Math.floor(s / 3600);
+  const m   = Math.floor((s % 3600) / 60);
   const sec = s % 60;
   if (h > 0) return `${h}h ${m}m`;
   if (m > 0) return `${m}m ${String(sec).padStart(2, '0')}s`;
   return `${sec}s`;
 }
 
+// Smooth progress bar: sweeps from 0 to real value on first meaningful render,
+// then nudges forward each second tick.
+function SmoothBar({
+  targetPct,
+  trackColor,
+  fillColor,
+  height = 4,
+}: {
+  targetPct: number;
+  trackColor: string;
+  fillColor: string;
+  height?: number;
+}) {
+  const fillRef   = useRef<HTMLDivElement>(null);
+  const didSweep  = useRef(false); // true after the initial 0→real sweep
+
+  useEffect(() => {
+    const el = fillRef.current;
+    if (!el) return;
+
+    // Skip the initial render where targetPct is still 0 (clock not ready)
+    if (targetPct === 0 && !didSweep.current) return;
+
+    if (!didSweep.current) {
+      // First time we have a real value: sweep in from 0
+      didSweep.current = true;
+      el.style.transition = 'none';
+      el.style.width = '0%';
+      // Double rAF ensures the browser has painted the 0% state before transitioning
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        el.style.transition = 'width 1.4s cubic-bezier(.4,0,.2,1)';
+        el.style.width = `${targetPct * 100}%`;
+      }));
+    } else {
+      // Each subsequent second: gentle 1.2s linear nudge
+      el.style.transition = 'width 1.2s linear';
+      el.style.width = `${targetPct * 100}%`;
+    }
+  }, [targetPct]);
+
+  return (
+    <div style={{ height, background: trackColor, borderRadius: height, overflow: 'hidden' }}>
+      <div
+        ref={fillRef}
+        style={{ height: '100%', background: fillColor, borderRadius: height, width: '0%' }}
+      />
+    </div>
+  );
+}
+
 export default function ScheduleTimer() {
   const [now, setNow] = useState<Date | null>(null);
-  const activeRef = useRef<HTMLDivElement>(null);
-  const scrolled  = useRef(false);
 
+  // Scroll to top on mount + lerp scroll (desktop only)
+  useEffect(() => {
+    window.scrollTo(0, 0);
+
+    if (window.matchMedia('(pointer: coarse)').matches) return;
+
+    let current = 0;
+    let target  = 0;
+    let rafId:  number;
+    const ease  = 0.072;
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      target += e.deltaY * 0.7;
+      target = Math.max(0, Math.min(target, document.body.scrollHeight - window.innerHeight));
+    };
+    const onScroll = () => {
+      if (Math.abs(window.scrollY - current) > 60) {
+        current = window.scrollY;
+        target  = window.scrollY;
+      }
+    };
+    const loop = () => {
+      current += (target - current) * ease;
+      if (Math.abs(target - current) < 0.05) current = target;
+      window.scrollTo(0, current);
+      rafId = requestAnimationFrame(loop);
+    };
+
+    window.addEventListener('wheel',  onWheel,  { passive: false });
+    window.addEventListener('scroll', onScroll, { passive: true });
+    rafId = requestAnimationFrame(loop);
+
+    return () => {
+      window.removeEventListener('wheel',  onWheel);
+      window.removeEventListener('scroll', onScroll);
+      cancelAnimationFrame(rafId);
+    };
+  }, []);
+
+  // Clock tick
   useEffect(() => {
     const tick = () => setNow(new Date());
     tick();
@@ -54,29 +148,22 @@ export default function ScheduleTimer() {
     return () => clearInterval(id);
   }, []);
 
-  useEffect(() => {
-    if (now && !scrolled.current && activeRef.current) {
-      scrolled.current = true;
-      setTimeout(() => activeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300);
-    }
-  }, [now]);
-
+  // ── Derived values ────────────────────────────────────────────────────────
   const curMin   = now ? now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60 : -1;
   const dayStart = toMin(schedule[0].startHour, schedule[0].startMinute);
   const dayEnd   = toMin(schedule[schedule.length - 1].endHour, schedule[schedule.length - 1].endMinute);
   const dayPct   = curMin < 0 ? 0 : Math.min(1, Math.max(0, (curMin - dayStart) / (dayEnd - dayStart)));
+
   const isAllDone   = now !== null && curMin >= dayEnd;
-  const isPreSchool = now !== null && curMin < dayStart;
+  const isPreSchool = now !== null && curMin <  dayStart;
 
   const items = schedule.map(item => {
-    const s = toMin(item.startHour, item.startMinute);
-    const e = toMin(item.endHour, item.endMinute);
+    const s        = toMin(item.startHour, item.startMinute);
+    const e        = toMin(item.endHour,   item.endMinute);
     const isActive = curMin >= s && curMin < e;
     const isDone   = curMin >= e;
-    const pct      = isActive ? (curMin - s) / (e - s) : 0;
-    const endMs    = (e - curMin) * 60000;
-    const startMs  = (s - curMin) * 60000;
-    return { ...item, isActive, isDone, pct, endMs, startMs };
+    const pct      = isActive ? Math.min(1, (curMin - s) / (e - s)) : 0;
+    return { ...item, isActive, isDone, pct, endMs: (e - curMin) * 60000, startMs: (s - curMin) * 60000 };
   });
 
   const activeIdx  = items.findIndex(i => i.isActive);
@@ -87,14 +174,11 @@ export default function ScheduleTimer() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;500;600;700;800&family=Barlow:wght@300;400;500&display=swap');
-
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
         html, body {
           background: #F4F6F2;
           color: #18181A;
-          font-family: 'Barlow', sans-serif;
           min-height: 100vh;
           -webkit-overflow-scrolling: touch;
         }
@@ -104,13 +188,12 @@ export default function ScheduleTimer() {
           --green-bg:   #EEF5EE;
           --green-mid:  #A8CDA8;
           --green-lite: #C6DEC6;
-          --green-text: #4A8C4A;
+          --green-bar:  #D5E2D5;
           --sage:       #7DAD7D;
           --ink:        #18181A;
           --muted:      #5A6B5A;
           --faint:      #8FA98F;
           --border:     #D5E2D5;
-          --bg:         #F4F6F2;
           --surface:    #FFFFFF;
         }
 
@@ -129,9 +212,8 @@ export default function ScheduleTimer() {
           gap: 1rem;
           border-bottom: 1.5px solid var(--border);
         }
-
         .header-school {
-          font-family: 'Barlow Condensed', sans-serif;
+          font-family: var(--font-barlow, sans-serif);
           font-size: 0.65rem;
           font-weight: 500;
           letter-spacing: 0.2em;
@@ -139,7 +221,7 @@ export default function ScheduleTimer() {
           color: var(--faint);
         }
         .header-title {
-          font-family: 'Barlow Condensed', sans-serif;
+          font-family: var(--font-barlow, sans-serif);
           font-size: clamp(2rem, 6vw, 3.2rem);
           font-weight: 700;
           line-height: 1;
@@ -147,11 +229,10 @@ export default function ScheduleTimer() {
           margin-top: 0.15rem;
           color: var(--ink);
         }
-
         .header-right { text-align: right; flex-shrink: 0; }
         .header-clock {
           font-variant-numeric: tabular-nums;
-          font-family: 'Barlow Condensed', sans-serif;
+          font-family: var(--font-barlow, sans-serif);
           font-size: clamp(1.2rem, 3.5vw, 1.8rem);
           font-weight: 300;
           letter-spacing: 0.01em;
@@ -175,28 +256,16 @@ export default function ScheduleTimer() {
           gap: 0.75rem;
         }
         .day-bar-label {
-          font-family: 'Barlow Condensed', sans-serif;
+          font-family: var(--font-barlow, sans-serif);
           font-size: 0.62rem;
           letter-spacing: 0.1em;
           text-transform: uppercase;
           color: var(--faint);
           white-space: nowrap;
         }
-        .day-bar-track {
-          flex: 1;
-          height: 4px;
-          background: var(--border);
-          border-radius: 4px;
-          overflow: hidden;
-        }
-        .day-bar-fill {
-          height: 100%;
-          background: var(--green);
-          border-radius: 4px;
-          transition: width 1s linear;
-        }
+        .day-bar-track { flex: 1; }
         .day-bar-pct {
-          font-family: 'Barlow Condensed', sans-serif;
+          font-family: var(--font-barlow, sans-serif);
           font-size: 0.62rem;
           font-weight: 600;
           color: var(--green);
@@ -205,13 +274,8 @@ export default function ScheduleTimer() {
         }
 
         /* ── HERO ── */
-        .hero {
-          margin: 1rem 1.5rem;
-          border-radius: 14px;
-          overflow: hidden;
-        }
+        .hero { margin: 1rem 1.5rem; border-radius: 14px; overflow: hidden; }
 
-        /* Active period hero */
         .hero-active {
           background: var(--green);
           color: #fff;
@@ -225,7 +289,7 @@ export default function ScheduleTimer() {
           gap: 1rem;
         }
         .hero-eyebrow {
-          font-family: 'Barlow Condensed', sans-serif;
+          font-family: var(--font-barlow, sans-serif);
           font-size: 0.62rem;
           font-weight: 600;
           letter-spacing: 0.22em;
@@ -234,7 +298,7 @@ export default function ScheduleTimer() {
           margin-bottom: 0.3rem;
         }
         .hero-name {
-          font-family: 'Barlow Condensed', sans-serif;
+          font-family: var(--font-barlow, sans-serif);
           font-size: clamp(2.2rem, 7vw, 4rem);
           font-weight: 800;
           line-height: 0.9;
@@ -242,7 +306,7 @@ export default function ScheduleTimer() {
           letter-spacing: -0.01em;
         }
         .hero-range {
-          font-family: 'Barlow Condensed', sans-serif;
+          font-family: var(--font-barlow, sans-serif);
           font-size: clamp(0.8rem, 2vw, 1rem);
           opacity: 0.65;
           margin-top: 0.4rem;
@@ -251,14 +315,14 @@ export default function ScheduleTimer() {
         .hero-countdown { text-align: right; flex-shrink: 0; }
         .hero-countdown-num {
           font-variant-numeric: tabular-nums;
-          font-family: 'Barlow Condensed', sans-serif;
+          font-family: var(--font-barlow, sans-serif);
           font-size: clamp(2rem, 6vw, 3.5rem);
           font-weight: 300;
           line-height: 0.9;
           letter-spacing: -0.02em;
         }
         .hero-countdown-lbl {
-          font-family: 'Barlow Condensed', sans-serif;
+          font-family: var(--font-barlow, sans-serif);
           font-size: 0.6rem;
           letter-spacing: 0.18em;
           text-transform: uppercase;
@@ -269,23 +333,11 @@ export default function ScheduleTimer() {
         .hero-period-bar-meta {
           display: flex;
           justify-content: space-between;
-          font-family: 'Barlow Condensed', sans-serif;
+          font-family: var(--font-barlow, sans-serif);
           font-size: 0.6rem;
           letter-spacing: 0.08em;
           opacity: 0.55;
-          margin-bottom: 0.4rem;
-        }
-        .hero-period-bar-track {
-          height: 3px;
-          background: rgba(255,255,255,0.2);
-          border-radius: 3px;
-          overflow: hidden;
-        }
-        .hero-period-bar-fill {
-          height: 100%;
-          background: rgba(255,255,255,0.85);
-          border-radius: 3px;
-          transition: width 1s linear;
+          margin-bottom: 0.5rem;
         }
 
         /* Up next hero */
@@ -305,7 +357,7 @@ export default function ScheduleTimer() {
         .hero-next .hero-countdown-num { color: var(--green); }
         .hero-next .hero-countdown-lbl { color: var(--muted); opacity: 1; }
 
-        /* Pre-school / All Done hero */
+        /* Status cards */
         .hero-status {
           background: var(--surface);
           border: 1.5px solid var(--border);
@@ -314,7 +366,7 @@ export default function ScheduleTimer() {
           text-align: center;
         }
         .hero-status-title {
-          font-family: 'Barlow Condensed', sans-serif;
+          font-family: var(--font-barlow, sans-serif);
           font-size: clamp(1.6rem, 5vw, 2.5rem);
           font-weight: 700;
           text-transform: uppercase;
@@ -329,7 +381,7 @@ export default function ScheduleTimer() {
         }
         .hero-status-next {
           margin-top: 1rem;
-          font-family: 'Barlow Condensed', sans-serif;
+          font-family: var(--font-barlow, sans-serif);
           font-size: 0.75rem;
           letter-spacing: 0.12em;
           text-transform: uppercase;
@@ -339,7 +391,7 @@ export default function ScheduleTimer() {
         /* ── SCHEDULE LIST ── */
         .schedule { padding: 0 1.5rem; }
         .sched-header {
-          font-family: 'Barlow Condensed', sans-serif;
+          font-family: var(--font-barlow, sans-serif);
           font-size: 0.62rem;
           font-weight: 600;
           letter-spacing: 0.22em;
@@ -369,7 +421,7 @@ export default function ScheduleTimer() {
         }
 
         .sched-num {
-          font-family: 'Barlow Condensed', sans-serif;
+          font-family: var(--font-barlow, sans-serif);
           font-size: 0.65rem;
           font-weight: 500;
           letter-spacing: 0.06em;
@@ -380,7 +432,7 @@ export default function ScheduleTimer() {
         .sched-row.is-active .sched-num { color: var(--green); }
 
         .sched-name {
-          font-family: 'Barlow Condensed', sans-serif;
+          font-family: var(--font-barlow, sans-serif);
           font-size: clamp(1.1rem, 3.5vw, 1.5rem);
           font-weight: 700;
           text-transform: uppercase;
@@ -396,7 +448,7 @@ export default function ScheduleTimer() {
         .sched-row.is-active .sched-name { color: var(--green); }
 
         .sched-time {
-          font-family: 'Barlow Condensed', sans-serif;
+          font-family: var(--font-barlow, sans-serif);
           font-size: 0.65rem;
           color: var(--faint);
           letter-spacing: 0.04em;
@@ -408,7 +460,7 @@ export default function ScheduleTimer() {
 
         .badge {
           display: inline-block;
-          font-family: 'Barlow Condensed', sans-serif;
+          font-family: var(--font-barlow, sans-serif);
           font-size: 0.58rem;
           font-weight: 600;
           letter-spacing: 0.18em;
@@ -421,7 +473,8 @@ export default function ScheduleTimer() {
         .badge-next { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-lite); }
 
         .sched-val {
-          font-family: 'Barlow Condensed', sans-serif;
+          font-variant-numeric: tabular-nums;
+          font-family: var(--font-barlow, sans-serif);
           font-size: clamp(0.95rem, 2.8vw, 1.25rem);
           font-weight: 400;
           letter-spacing: -0.01em;
@@ -431,7 +484,7 @@ export default function ScheduleTimer() {
         .sched-row.is-active .sched-val { color: var(--green); font-weight: 600; }
 
         .sched-val-lbl {
-          font-family: 'Barlow Condensed', sans-serif;
+          font-family: var(--font-barlow, sans-serif);
           font-size: 0.52rem;
           letter-spacing: 0.14em;
           text-transform: uppercase;
@@ -440,25 +493,10 @@ export default function ScheduleTimer() {
         }
         .sched-row.is-active .sched-val-lbl { color: var(--sage); }
 
-        .done-mark {
-          font-family: 'Barlow Condensed', sans-serif;
-          font-size: 0.65rem;
-          letter-spacing: 0.08em;
-          color: var(--green-mid);
-        }
+        .done-mark { font-size: 0.7rem; color: var(--green-mid); }
 
         .active-bar {
-          height: 3px;
-          background: var(--green-lite);
-          border-radius: 3px;
           margin: 0 -0.75rem 0.25rem;
-          overflow: hidden;
-        }
-        .active-bar-fill {
-          height: 100%;
-          background: var(--green);
-          border-radius: 3px;
-          transition: width 1s linear;
         }
 
         @media (min-width: 600px) {
@@ -491,7 +529,7 @@ export default function ScheduleTimer() {
         <div className="day-bar-wrap">
           <span className="day-bar-label">8:30 AM</span>
           <div className="day-bar-track">
-            <div className="day-bar-fill" style={{ width: `${dayPct * 100}%` }} />
+            <SmoothBar targetPct={dayPct} trackColor="var(--green-bar)" fillColor="var(--green)" height={4} />
           </div>
           <span className="day-bar-label">3:11 PM</span>
           <span className="day-bar-pct">{Math.round(dayPct * 100)}%</span>
@@ -519,7 +557,9 @@ export default function ScheduleTimer() {
                 <div>
                   <div className="hero-eyebrow">Now in Progress</div>
                   <div className="hero-name">{activeItem.label}</div>
-                  <div className="hero-range">{fmt12(activeItem.startHour, activeItem.startMinute)} – {fmt12(activeItem.endHour, activeItem.endMinute)}</div>
+                  <div className="hero-range">
+                    {fmt12(activeItem.startHour, activeItem.startMinute)} – {fmt12(activeItem.endHour, activeItem.endMinute)}
+                  </div>
                 </div>
                 <div className="hero-countdown">
                   <div className="hero-countdown-num">{fmtCountdown(activeItem.endMs)}</div>
@@ -532,9 +572,12 @@ export default function ScheduleTimer() {
                   <span>{Math.round(activeItem.pct * 100)}% through</span>
                   <span>{fmt12(activeItem.endHour, activeItem.endMinute)}</span>
                 </div>
-                <div className="hero-period-bar-track">
-                  <div className="hero-period-bar-fill" style={{ width: `${activeItem.pct * 100}%` }} />
-                </div>
+                <SmoothBar
+                  targetPct={activeItem.pct}
+                  trackColor="rgba(255,255,255,0.2)"
+                  fillColor="rgba(255,255,255,0.85)"
+                  height={3}
+                />
               </div>
             </div>
           ) : nextItem ? (
@@ -542,7 +585,9 @@ export default function ScheduleTimer() {
               <div>
                 <div className="hero-eyebrow">Up Next</div>
                 <div className="hero-name">{nextItem.label}</div>
-                <div className="hero-range">{fmt12(nextItem.startHour, nextItem.startMinute)} – {fmt12(nextItem.endHour, nextItem.endMinute)}</div>
+                <div className="hero-range">
+                  {fmt12(nextItem.startHour, nextItem.startMinute)} – {fmt12(nextItem.endHour, nextItem.endMinute)}
+                </div>
               </div>
               <div className="hero-countdown">
                 <div className="hero-countdown-num">{fmtCountdown(nextItem.startMs)}</div>
@@ -557,17 +602,23 @@ export default function ScheduleTimer() {
           <div className="sched-header">Full Day</div>
           {items.map((item, i) => {
             const isNext = i === nextIdx;
-            const ms = item.isActive ? item.endMs : item.startMs;
+            const ms     = item.isActive ? item.endMs : item.startMs;
             return (
               <div key={i}>
                 <div
-                  ref={item.isActive ? activeRef : undefined}
-                  className={`sched-row ${item.isActive ? 'is-active' : ''} ${item.isDone ? 'is-done' : ''} ${item.type === 'break' ? 'is-break' : ''}`}
+                  className={[
+                    'sched-row',
+                    item.isActive ? 'is-active' : '',
+                    item.isDone   ? 'is-done'   : '',
+                    item.type === 'break' ? 'is-break' : '',
+                  ].join(' ')}
                 >
                   <span className="sched-num">{String(i + 1).padStart(2, '0')}</span>
-                  <div className="sched-body">
+                  <div>
                     <div className="sched-name">{item.label}</div>
-                    <div className="sched-time">{fmt12(item.startHour, item.startMinute)} – {fmt12(item.endHour, item.endMinute)}</div>
+                    <div className="sched-time">
+                      {fmt12(item.startHour, item.startMinute)} – {fmt12(item.endHour, item.endMinute)}
+                    </div>
                   </div>
                   <div className="sched-right">
                     {item.isActive && <div className="badge badge-now">Now</div>}
@@ -581,9 +632,15 @@ export default function ScheduleTimer() {
                     {item.isDone && <span className="done-mark">✓</span>}
                   </div>
                 </div>
+
                 {item.isActive && (
                   <div className="active-bar">
-                    <div className="active-bar-fill" style={{ width: `${item.pct * 100}%` }} />
+                    <SmoothBar
+                      targetPct={item.pct}
+                      trackColor="var(--green-lite)"
+                      fillColor="var(--green)"
+                      height={3}
+                    />
                   </div>
                 )}
               </div>
