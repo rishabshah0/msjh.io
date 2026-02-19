@@ -2,106 +2,54 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { motion, useScroll, useTransform } from "framer-motion";
 import { useRef, useEffect } from "react";
 
 const general = [
-  { href: "/s", text: "Countdown Schedule" },
-  { href: "/map", text: "Campus Map" },
-  { href: "/school", text: "School Homepage" },
-  { href: "/bell", text: "Bell Schedule" },
-  { href: "/aeries", text: "Student Aeries" },
-  { href: "/dates", text: "Important Dates" },
+  { href: "/s",        text: "Countdown Schedule" },
+  { href: "/map",      text: "Campus Map" },
+  { href: "/school",   text: "School Homepage" },
+  { href: "/bell",     text: "Bell Schedule" },
+  { href: "/aeries",   text: "Student Aeries" },
+  { href: "/dates",    text: "Important Dates" },
   { href: "/warriors", text: "MSJ Instagram" },
 ];
 
 const activities = [
-  { href: "/asb", text: "ASB Website" },
-  { href: "/ac", text: "Academic Club Discord" },
-  { href: "/cs", text: "CS Club Homepage" },
-  { href: "/cs/signup", text: "CS Club Signup", indent: true },
-  { href: "/bio", text: "Biology Club Discord" },
-  { href: "/ai", text: "AI Club Discord" },
-  { href: "/math", text: "Math Club Discord" },
-  { href: "/esports", text: "E-Sports Club Discord" },
-  { href: "/jp", text: "Japan Club Discord" },
+  { href: "/asb",       text: "ASB Website" },
+  { href: "/ac",        text: "Academic Club Discord" },
+  { href: "/cs",        text: "CS Club Homepage" },
+  { href: "/cs/signup", text: "CS Club Signup",    indent: true },
+  { href: "/bio",       text: "Biology Club Discord" },
+  { href: "/ai",        text: "AI Club Discord" },
+  { href: "/math",      text: "Math Club Discord" },
+  { href: "/esports",   text: "E-Sports Club Discord" },
+  { href: "/jp",        text: "Japan Club Discord" },
   { href: "/jp/signup", text: "Japan Club Signup", indent: true },
 ];
 
-function LinkRow({
-  href,
-  text,
-  indent,
-  index,
-}: {
-  href: string;
-  text: string;
-  indent?: boolean;
-  index: number;
-}) {
-  return (
-    <motion.li
-      initial={{ opacity: 0, x: -24 }}
-      whileInView={{ opacity: 1, x: 0 }}
-      viewport={{ once: true, margin: "-50px" }}
-      transition={{ duration: 0.5, delay: index * 0.055, ease: [0.25, 0.46, 0.45, 0.94] }}
-    >
-      <Link href={href} target="_blank" className="link-row">
-        <span className="link-index">{String(index + 1).padStart(2, "0")}</span>
-        <span className={`link-text ${indent ? "indent" : ""}`}>{text}</span>
-        <span className="link-arrow">↗</span>
-      </Link>
-    </motion.li>
-  );
-}
-
-function SectionHeading({ children }: { children: React.ReactNode }) {
-  return (
-    <motion.div
-      className="section-heading"
-      initial={{ opacity: 0, y: 16 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-40px" }}
-      transition={{ duration: 0.5, ease: "easeOut" }}
-    >
-      <span className="section-heading-text">{children}</span>
-      <span className="section-heading-line" />
-    </motion.div>
-  );
-}
-
 export default function Home() {
-  const heroRef = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: heroRef,
-    offset: ["start start", "end start"],
-  });
-  const heroY = useTransform(scrollYProgress, [0, 1], [0, 50]);
-  const heroOpacity = useTransform(scrollYProgress, [0, 0.75], [1, 0]);
+  const heroInnerRef = useRef<HTMLDivElement>(null);
 
-  // Smooth lerp scroll — desktop/mouse only, never touches touch events
+  // ── Lerp scroll — desktop/mouse only ─────────────────────────────────────
   useEffect(() => {
-    // Only activate on non-touch devices
-    const isTouchDevice = () =>
-      window.matchMedia("(pointer: coarse)").matches;
-
-    if (isTouchDevice()) return;
+    if (window.matchMedia("(pointer: coarse)").matches) return;
 
     let current = 0;
-    let target = 0;
-    let rafId: number;
-    let ticking = false;
-    const ease = 0.072;
+    let target  = 0;
+    let rafId:  number;
+    const ease  = 0.072;
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       target += e.deltaY * 0.7;
-      target = Math.max(
-        0,
-        Math.min(target, document.body.scrollHeight - window.innerHeight)
-      );
-      if (!ticking) {
-        ticking = true;
+      target = Math.max(0, Math.min(target, document.body.scrollHeight - window.innerHeight));
+    };
+
+    const onScroll = () => {
+      // Resync when keyboard / touch moves the page
+      if (Math.abs(window.scrollY - current) > 60) {
+        current = window.scrollY;
+        target  = window.scrollY;
       }
     };
 
@@ -112,39 +60,79 @@ export default function Home() {
       rafId = requestAnimationFrame(loop);
     };
 
-    // Re-sync if something else scrolls (keyboard, anchor links)
-    const onScroll = () => {
-      if (Math.abs(window.scrollY - current) > 60) {
-        current = window.scrollY;
-        target = window.scrollY;
-      }
-    };
-
-    window.addEventListener("wheel", onWheel, { passive: false });
+    window.addEventListener("wheel",  onWheel,  { passive: false });
     window.addEventListener("scroll", onScroll, { passive: true });
     rafId = requestAnimationFrame(loop);
 
     return () => {
-      window.removeEventListener("wheel", onWheel);
+      window.removeEventListener("wheel",  onWheel);
       window.removeEventListener("scroll", onScroll);
       cancelAnimationFrame(rafId);
     };
   }, []);
 
+  // ── Hero parallax — driven by scroll, clamped to [0,1] ───────────────────
+  useEffect(() => {
+    const hero = heroInnerRef.current;
+    if (!hero) return;
+
+    const update = () => {
+      // Only active while hero is in view (scrollY < ~62vh)
+      const maxScroll = window.innerHeight * 0.62;
+      const t = Math.min(1, Math.max(0, window.scrollY / maxScroll));
+      hero.style.transform = `translateY(${t * 50}px)`;
+      hero.style.opacity   = String(Math.max(0, 1 - t / 0.75));
+    };
+
+    update(); // set initial state
+    window.addEventListener("scroll", update, { passive: true });
+    return () => window.removeEventListener("scroll", update);
+  }, []);
+
+  // ── Scroll reveal — RAF-driven, works perfectly with lerp scroll ──────────
+  // Checks every frame whether each element is in the reveal zone.
+  // Adds .revealed when in view, removes it when fully above viewport,
+  // so every scroll-down pass triggers the animation again.
+  useEffect(() => {
+    const els = Array.from(document.querySelectorAll<HTMLElement>(".reveal, .reveal-up"));
+    let rafId: number;
+
+    const MARGIN = 40; // px from bottom of viewport to trigger reveal
+
+    const check = () => {
+      const vh = window.innerHeight;
+      els.forEach((el) => {
+        const rect = el.getBoundingClientRect();
+        const inView = rect.top < vh - MARGIN && rect.bottom > 0;
+        const aboveViewport = rect.bottom < 0;
+
+        if (inView && !el.classList.contains("revealed")) {
+          el.style.transitionDelay = el.dataset.delay ?? "0s";
+          el.classList.add("revealed");
+        } else if (aboveViewport && el.classList.contains("revealed")) {
+          // Fully scrolled past — reset so it animates again on next scroll-down
+          el.style.transitionDelay = "0s";
+          el.classList.remove("revealed");
+        }
+      });
+      rafId = requestAnimationFrame(check);
+    };
+
+    rafId = requestAnimationFrame(check);
+    return () => cancelAnimationFrame(rafId);
+  }, []);
+
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap');
-
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
         :root {
-          --bg: #F7F5F0;
-          --surface: #EDEAE2;
-          --border: rgba(0,0,0,0.1);
-          --text: #18180F;
-          --muted: #8A8778;
-          --accent: #2D6A2D;
+          --bg:         #F7F5F0;
+          --border:     rgba(0,0,0,0.1);
+          --text:       #18180F;
+          --muted:      #8A8778;
+          --accent:     #2D6A2D;
           --accent-dim: rgba(45,106,45,0.07);
         }
 
@@ -153,18 +141,15 @@ export default function Home() {
         body {
           background: var(--bg);
           color: var(--text);
-          font-family: 'JetBrains Mono', monospace;
+          font-family: var(--font-mono), monospace;
           min-height: 100vh;
           overflow-x: hidden;
-          /* native momentum scroll on iOS */
           -webkit-overflow-scrolling: touch;
         }
 
-        /* fine dot texture */
         body::before {
           content: '';
-          position: fixed;
-          inset: 0;
+          position: fixed; inset: 0;
           background-image: radial-gradient(circle, rgba(0,0,0,0.06) 1px, transparent 1px);
           background-size: 28px 28px;
           pointer-events: none;
@@ -189,6 +174,11 @@ export default function Home() {
           position: relative;
         }
 
+        /* parallax driven by JS — no CSS transition here to keep it crisp */
+        .hero-inner {
+          will-change: transform, opacity;
+        }
+
         .hero-tag {
           font-size: 0.62rem;
           letter-spacing: 0.28em;
@@ -198,22 +188,23 @@ export default function Home() {
           display: flex;
           align-items: center;
           gap: 0.75rem;
+          animation: heroTagIn 0.6s cubic-bezier(.25,.46,.45,.94) 0.1s both;
         }
         .hero-tag::before {
           content: '';
           display: block;
-          width: 24px;
-          height: 1px;
+          width: 24px; height: 1px;
           background: var(--accent);
         }
 
         .hero-title {
-          font-family: 'Syne', sans-serif;
+          font-family: var(--font-syne), sans-serif;
           font-size: clamp(3.8rem, 13vw, 8.5rem);
           font-weight: 800;
           line-height: 0.88;
           letter-spacing: -0.03em;
           color: var(--text);
+          animation: heroTitleIn 0.7s cubic-bezier(.16,1,.3,1) 0.2s both;
         }
         .hero-title .accent { color: var(--accent); }
 
@@ -222,11 +213,11 @@ export default function Home() {
           display: flex;
           align-items: center;
           gap: 1.2rem;
+          animation: heroSubIn 0.6s cubic-bezier(.16,1,.3,1) 0.42s both;
         }
 
         .logo-circle {
-          width: 40px;
-          height: 40px;
+          width: 40px; height: 40px;
           border-radius: 50%;
           overflow: hidden;
           border: 1.5px solid var(--border);
@@ -243,8 +234,7 @@ export default function Home() {
 
         .scroll-hint {
           position: absolute;
-          bottom: 1rem;
-          right: 0;
+          bottom: 1rem; right: 0;
           font-size: 0.58rem;
           letter-spacing: 0.22em;
           color: var(--muted);
@@ -257,14 +247,9 @@ export default function Home() {
         .scroll-hint::after {
           content: '';
           display: block;
-          width: 1px;
-          height: 40px;
+          width: 1px; height: 40px;
           background: linear-gradient(to bottom, var(--muted), transparent);
           animation: scrollDrop 2s ease-in-out infinite;
-        }
-        @keyframes scrollDrop {
-          0%, 100% { opacity: 0.7; transform: scaleY(1); transform-origin: top; }
-          50% { opacity: 0.2; transform: scaleY(0.35); }
         }
 
         /* ── SECTION HEADING ── */
@@ -277,7 +262,7 @@ export default function Home() {
           border-bottom: 1px solid var(--border);
         }
         .section-heading-text {
-          font-family: 'Syne', sans-serif;
+          font-family: var(--font-syne), sans-serif;
           font-size: 0.58rem;
           letter-spacing: 0.32em;
           text-transform: uppercase;
@@ -285,8 +270,7 @@ export default function Home() {
           white-space: nowrap;
         }
         .section-heading-line {
-          flex: 1;
-          height: 1px;
+          flex: 1; height: 1px;
           background: var(--border);
         }
 
@@ -305,10 +289,8 @@ export default function Home() {
           border-radius: 4px;
           position: relative;
           overflow: hidden;
-          /* bigger tap targets on mobile */
           min-height: 48px;
         }
-
         .link-row::before {
           content: '';
           position: absolute;
@@ -319,14 +301,13 @@ export default function Home() {
         }
 
         @media (hover: hover) {
-          .link-row:hover { padding-left: 1.1rem; }
-          .link-row:hover::before { width: 100%; }
-          .link-row:hover .link-index { color: var(--accent); }
-          .link-row:hover .link-text { color: var(--accent); }
-          .link-row:hover .link-arrow { opacity: 1; transform: translate(0, 0); }
+          .link-row:hover                   { padding-left: 1.1rem; }
+          .link-row:hover::before           { width: 100%; }
+          .link-row:hover .link-index       { color: var(--accent); }
+          .link-row:hover .link-text        { color: var(--accent); }
+          .link-row:hover .link-text.indent { color: var(--accent); }
+          .link-row:hover .link-arrow       { opacity: 1; transform: translate(0,0); }
         }
-
-        /* tap highlight on touch */
         .link-row:active::before { width: 100%; }
 
         .link-index {
@@ -337,36 +318,27 @@ export default function Home() {
           transition: color 0.2s;
           position: relative;
         }
-
         .link-text {
-          font-family: 'Syne', sans-serif;
+          font-family: var(--font-syne), sans-serif;
           font-size: clamp(1rem, 2.6vw, 1.3rem);
           font-weight: 700;
           flex: 1;
           transition: color 0.2s;
           position: relative;
         }
-
         .link-text.indent {
-          font-family: 'JetBrains Mono', monospace;
+          font-family: var(--font-mono), monospace;
           font-size: 0.78rem;
           font-weight: 300;
           color: var(--muted);
           padding-left: 1.1rem;
         }
-        @media (hover: hover) {
-          .link-row:hover .link-text.indent { color: var(--accent); }
-        }
-
         .link-arrow {
           font-size: 0.85rem;
           color: var(--accent);
-          /* always visible on touch, hidden until hover on desktop */
           opacity: 1;
-          transform: translate(0, 0);
           position: relative;
         }
-
         @media (hover: hover) {
           .link-arrow {
             opacity: 0;
@@ -393,10 +365,7 @@ export default function Home() {
           letter-spacing: 0.03em;
         }
         .footer-note strong { color: var(--text); font-weight: 400; }
-        .footer-note a {
-          color: var(--accent);
-          text-decoration: none;
-        }
+        .footer-note a      { color: var(--accent); text-decoration: none; }
         .footer-right {
           text-align: right;
           font-size: 0.6rem;
@@ -410,6 +379,48 @@ export default function Home() {
         }
         .footer-right a:hover { opacity: 0.6; }
 
+        /* ── SCROLL REVEAL ── */
+        /* .reveal slides in from left; .reveal-up slides up */
+        /* transition-delay is set/cleared by JS — not hardcoded here */
+        .reveal {
+          opacity: 0;
+          transform: translateX(-24px);
+          transition: opacity 0.45s cubic-bezier(.25,.46,.45,.94),
+                      transform 0.45s cubic-bezier(.25,.46,.45,.94);
+        }
+        .reveal.revealed {
+          opacity: 1;
+          transform: translateX(0);
+        }
+
+        .reveal-up {
+          opacity: 0;
+          transform: translateY(14px);
+          transition: opacity 0.45s ease-out, transform 0.45s ease-out;
+        }
+        .reveal-up.revealed {
+          opacity: 1;
+          transform: translateY(0);
+        }
+
+        /* ── KEYFRAMES ── */
+        @keyframes heroTagIn {
+          from { opacity: 0; transform: translateX(-16px); }
+          to   { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes heroTitleIn {
+          from { opacity: 0; transform: translateY(32px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes heroSubIn {
+          from { opacity: 0; transform: translateY(16px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes scrollDrop {
+          0%, 100% { opacity: 0.7; transform: scaleY(1);    transform-origin: top; }
+          50%       { opacity: 0.2; transform: scaleY(0.35); }
+        }
+
         @media (max-width: 500px) {
           footer { flex-direction: column; }
           .footer-right { text-align: left; }
@@ -420,33 +431,16 @@ export default function Home() {
 
       <div className="page">
         {/* HERO */}
-        <div className="hero" ref={heroRef}>
-          <motion.div style={{ y: heroY, opacity: heroOpacity }}>
-            <motion.p
-              className="hero-tag"
-              initial={{ opacity: 0, x: -16 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6, delay: 0.1 }}
-            >
-              Mission San Jose High School
-            </motion.p>
+        <div className="hero">
+          <div className="hero-inner" ref={heroInnerRef}>
+            <p className="hero-tag">Mission San Jose High School</p>
 
-            <motion.h1
-              className="hero-title"
-              initial={{ opacity: 0, y: 36 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            >
+            <h1 className="hero-title">
               MSJ<span className="accent">H</span>
               <br />.io
-            </motion.h1>
+            </h1>
 
-            <motion.div
-              className="hero-sub"
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.42 }}
-            >
+            <div className="hero-sub">
               <div className="logo-circle">
                 <Image unoptimized src="/favicon.ico" alt="MSJH" fill style={{ objectFit: "cover" }} />
               </div>
@@ -454,35 +448,56 @@ export default function Home() {
                 Your unofficial campus hub.<br />
                 Not affiliated with MSJH.
               </p>
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
 
           <span className="scroll-hint">scroll</span>
         </div>
 
         {/* GENERAL */}
-        <SectionHeading>General</SectionHeading>
+        <div className="section-heading reveal-up">
+          <span className="section-heading-text">General</span>
+          <span className="section-heading-line" />
+        </div>
         <ul>
           {general.map((link, i) => (
-            <LinkRow key={link.href} {...link} index={i} />
+            <li
+              key={link.href}
+              className="reveal"
+              data-delay={`${i * 0.055}s`}
+            >
+              <Link href={link.href} target="_blank" className="link-row">
+                <span className="link-index">{String(i + 1).padStart(2, "0")}</span>
+                <span className="link-text">{link.text}</span>
+                <span className="link-arrow">↗</span>
+              </Link>
+            </li>
           ))}
         </ul>
 
         {/* STUDENT ACTIVITIES */}
-        <SectionHeading>Student Activities</SectionHeading>
+        <div className="section-heading reveal-up">
+          <span className="section-heading-text">Student Activities</span>
+          <span className="section-heading-line" />
+        </div>
         <ul>
           {activities.map((link, i) => (
-            <LinkRow key={link.href} {...link} index={i} />
+            <li
+              key={link.href}
+              className="reveal"
+              data-delay={`${i * 0.055}s`}
+            >
+              <Link href={link.href} target="_blank" className="link-row">
+                <span className="link-index">{String(i + 1).padStart(2, "0")}</span>
+                <span className={`link-text${link.indent ? " indent" : ""}`}>{link.text}</span>
+                <span className="link-arrow">↗</span>
+              </Link>
+            </li>
           ))}
         </ul>
 
         {/* FOOTER */}
-        <motion.footer
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-        >
+        <footer className="reveal-up">
           <p className="footer-note">
             Have something to add?<br />
             Find me on Instagram as{" "}
@@ -495,9 +510,9 @@ export default function Home() {
               Open source on GitHub ↗
             </Link>
             <br />
-            <span>© 2025</span>
+            <span>© 2026</span>
           </div>
-        </motion.footer>
+        </footer>
       </div>
     </>
   );
