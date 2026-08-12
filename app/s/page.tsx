@@ -12,15 +12,15 @@ interface ScheduleItem {
 }
 
 const schedule: ScheduleItem[] = [
-  { label: "Period 1", startHour: 8,  startMinute: 30, endHour: 9,  endMinute: 22, type: 'period' },
-  { label: "Period 2", startHour: 9,  startMinute: 28, endHour: 10, endMinute: 20, type: 'period' },
-  { label: "Break",    startHour: 10, startMinute: 20, endHour: 10, endMinute: 25, type: 'break'  },
-  { label: "Read",     startHour: 10, startMinute: 31, endHour: 10, endMinute: 50, type: 'break'  },
-  { label: "Period 3", startHour: 10, startMinute: 50, endHour: 11, endMinute: 42, type: 'period' },
-  { label: "Period 4", startHour: 11, startMinute: 48, endHour: 12, endMinute: 40, type: 'period' },
-  { label: "Lunch",    startHour: 12, startMinute: 40, endHour: 13, endMinute: 15, type: 'break'  },
-  { label: "Period 5", startHour: 13, startMinute: 21, endHour: 14, endMinute: 13, type: 'period' },
-  { label: "Period 6", startHour: 14, startMinute: 19, endHour: 15, endMinute: 11, type: 'period' },
+  { label: "Period 1", startHour: 8,  startMinute: 30, endHour: 9,  endMinute: 23, type: 'period' },
+  { label: "Period 2", startHour: 9,  startMinute: 29, endHour: 10, endMinute: 22, type: 'period' },
+  { label: "Break",    startHour: 10, startMinute: 22, endHour: 10, endMinute: 27, type: 'break'  },
+  { label: "Read",     startHour: 10, startMinute: 33, endHour: 10, endMinute: 52, type: 'break'  },
+  { label: "Period 3", startHour: 10, startMinute: 52, endHour: 11, endMinute: 45, type: 'period' },
+  { label: "Period 4", startHour: 11, startMinute: 51, endHour: 12, endMinute: 44, type: 'period' },
+  { label: "Lunch",    startHour: 12, startMinute: 44, endHour: 13, endMinute: 19, type: 'break'  },
+  { label: "Period 5", startHour: 13, startMinute: 25, endHour: 14, endMinute: 18, type: 'period' },
+  { label: "Period 6", startHour: 14, startMinute: 24, endHour: 15, endMinute: 17, type: 'period' },
 ];
 
 function toMin(h: number, m: number) { return h * 60 + m; }
@@ -531,7 +531,7 @@ export default function ScheduleTimer() {
           <div className="day-bar-track">
             <SmoothBar targetPct={dayPct} trackColor="var(--green-bar)" fillColor="var(--green)" height={4} />
           </div>
-          <span className="day-bar-label">3:11 PM</span>
+          <span className="day-bar-label">3:17 PM</span>
           <span className="day-bar-pct">{Math.round(dayPct * 100)}%</span>
         </div>
 
