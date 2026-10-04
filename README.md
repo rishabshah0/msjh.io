@@ -1,36 +1,27 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MSJH.io
 
-## Getting Started
+An unofficial hub for Mission San Jose High School: a live bell-schedule countdown, the campus map,
+and links to school pages and clubs.
 
-First, run the development server:
+Built with Next.js (static export), React and Tailwind CSS. Use [bun](https://bun.sh).
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+bun install
+bun dev          # http://localhost:3000
+bun run build    # static site in out/
+bun run preview  # serve out/ locally
+bun run typecheck
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Where things live
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `lib/schedule.ts`: the bell schedule. Update the times here when the schedule changes.
+- `lib/links.ts`: the links on the home page.
+- `public/_redirects`: short links (`/bell`, `/asb`, ...) served by the host.
+- `app/globals.css`: colour tokens and the "world" colourways each page uses.
+- `lib/flood.ts`: the home card to schedule page transition.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Deploying
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+`bun run build` writes a fully static site to `out/`; deploy that folder. `_redirects` is copied
+into it.
