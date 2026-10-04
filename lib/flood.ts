@@ -87,16 +87,47 @@ function cardRect(): (Rect & { radius: string }) | null {
   return { top: r.top, right: r.right, bottom: r.bottom, left: r.left, radius: getComputedStyle(card).borderTopLeftRadius };
 }
 
-const inset = (r: Rect, radius: string) =>
-  `inset(${r.top}px ${innerWidth - r.right}px ${innerHeight - r.bottom}px ${r.left}px round ${radius})`;
+type Space = { w: number; h: number; dx: number; dy: number };
+
+function snapshotSpace(): Space {
+  const root = document.documentElement;
+  const group = getComputedStyle(root, "::view-transition-group(root)");
+  const space = { w: parseFloat(group.width) || innerWidth, h: parseFloat(group.height) || innerHeight, dx: 0, dy: 0 };
+  const title = document.querySelector('[data-flood="title"]');
+  const anim = document
+    .getAnimations()
+    .find((a) => (a.effect as KeyframeEffect | null)?.pseudoElement === "::view-transition-group(flood-title)");
+  if (title && anim) {
+    const frames = (anim.effect as KeyframeEffect).getKeyframes();
+    const end = new DOMMatrix(String(frames[frames.length - 1].transform));
+    const r = title.getBoundingClientRect();
+    space.dx = end.e - r.left;
+    space.dy = end.f - r.top;
+  }
+  return space;
+}
+
+const shift = (r: Rect, s: Space): Rect => ({
+  top: r.top + s.dy,
+  right: r.right + s.dx,
+  bottom: r.bottom + s.dy,
+  left: r.left + s.dx,
+});
+
+const inset = (r: Rect, radius: string, s: Space) => {
+  const b = shift(r, s);
+  return `inset(${b.top}px ${s.w - b.right}px ${s.h - b.bottom}px ${b.left}px round ${radius})`;
+};
 const FULL = "inset(0px 0px 0px 0px round 0px)";
 
-function progressToReach(from: Rect, el: Rect) {
+function progressToReach(from: Rect, el: Rect, s: Space) {
+  const a = shift(from, s);
+  const b = shift(el, s);
   const need = [
-    from.top > el.bottom ? 1 - el.bottom / from.top : 0,
-    from.bottom < el.top ? (el.top - from.bottom) / (innerHeight - from.bottom) : 0,
-    from.left > el.right ? 1 - el.right / from.left : 0,
-    from.right < el.left ? (el.left - from.right) / (innerWidth - from.right) : 0,
+    a.top > b.bottom ? 1 - b.bottom / a.top : 0,
+    a.bottom < b.top ? (b.top - a.bottom) / (s.h - a.bottom) : 0,
+    a.left > b.right ? 1 - b.right / a.left : 0,
+    a.right < b.left ? (b.left - a.right) / (s.w - a.right) : 0,
   ];
   return Math.min(1, Math.max(...need));
 }
@@ -126,13 +157,14 @@ export function flood(navigate: () => void, dir: "in" | "back" = "in") {
 
   transition.ready
     .then(() => {
+      const space = snapshotSpace();
       compositeTravel();
       if (dir === "in") {
         if (!from) return;
-        const grow = held([{ clipPath: inset(from, from.radius) }, { clipPath: FULL }], DURATION, EASING);
+        const grow = held([{ clipPath: inset(from, from.radius, space) }, { clipPath: FULL }], DURATION, EASING);
         root.animate(grow.frames, { duration: grow.duration, fill: "both", pseudoElement: "::view-transition-new(root)" });
         for (const el of revealed) {
-          const at = HOLD + timeFor(progressToReach(from, el.getBoundingClientRect())) * DURATION;
+          const at = HOLD + timeFor(progressToReach(from, el.getBoundingClientRect(), space)) * DURATION;
           root.animate(waitThen(at, REVEAL, "in"), {
             duration: at + REVEAL,
             fill: "both",
@@ -143,10 +175,10 @@ export function flood(navigate: () => void, dir: "in" | "back" = "in") {
         const card = cardRect();
         if (!card) return;
         const old = "::view-transition-old(root)";
-        const shrink = held([{ clipPath: FULL }, { clipPath: inset(card, card.radius) }], DURATION, EASING);
+        const shrink = held([{ clipPath: FULL }, { clipPath: inset(card, card.radius, space) }], DURATION, EASING);
         root.animate(shrink.frames, { duration: shrink.duration, fill: "both", pseudoElement: old });
         revealed.forEach((el, i) => {
-          const need = progressToReach(card, revealedRects[i]);
+          const need = progressToReach(card, revealedRects[i], space);
           const end = need === 0 ? 150 : Math.max(75, timeFor(1 - need) * DURATION);
           const duration = Math.min(175, end);
           root.animate(waitThen(HOLD + end - duration, duration, "out"), {
@@ -252,9 +284,10 @@ export function warmFlood() {
     let completed = false;
     t.ready
       .then(() => {
+        const space = snapshotSpace();
         compositeTravel(false);
         const a = root.animate(
-          { clipPath: [inset(card, card.radius), FULL] },
+          { clipPath: [inset(card, card.radius, space), FULL] },
           { duration: WARM_DURATION, easing: EASING, pseudoElement: "::view-transition-new(root)" },
         );
         a.finished.then(() => (completed = true)).catch(() => {});
